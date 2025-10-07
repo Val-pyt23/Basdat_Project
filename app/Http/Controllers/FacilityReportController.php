@@ -116,27 +116,37 @@ class FacilityReportController extends Controller
      */
     public function update(Request $request, FacilityReport $report)
     {
-        $isAdmin = Auth::user()->role->name == 'admin_sarpras';
-        $originalStatus = $report->status; // Simpan status lama
+        // Cek apakah pengguna adalah admin
+        $isAdmin = in_array(Auth::user()->role->name, ['superadmin', 'admin_instansi']);
+        $originalStatus = $report->status;
+        $dataToUpdate = [];
 
         if ($isAdmin) {
+            // ---- LOGIKA UNTUK ADMIN ----
+            // 1. Aturan validasi HANYA untuk admin
             $rules = [
                 'status' => 'required|string',
                 'admin_comment' => 'nullable|string',
             ];
+            
             $request->validate($rules);
-            $dataToUpdate = ['status' => $request->status];
+            
+            // 2. Data yang akan diupdate HANYA status
+            $dataToUpdate['status'] = $request->status;
 
+            // 3. Simpan komentar jika ada
             if ($request->filled('admin_comment')) {
                 $report->comments()->create([
                     'user_id' => Auth::id(),
                     'body' => $request->admin_comment,
                 ]);
-    
-                // KIRIM NOTIFIKASI KE USER BAHWA ADMIN MEMBERI KOMENTAR
+                // Kirim notifikasi komentar ke user
                 $report->reporter->notify(new \App\Notifications\NewReportComment($report));
             }
+
         } else {
+            // ---- LOGIKA UNTUK USER BIASA ----
+            // Aturan validasi untuk user biasa (tidak ada status)
             $rules = [
                 'title' => 'required|string|max:255',
                 'category_id' => 'required|exists:categories,category_id',
@@ -145,10 +155,12 @@ class FacilityReportController extends Controller
                 'location' => 'required|string|max:255',
                 'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
             ];
+            
             $request->validate($rules);
-            $dataToUpdate = $request->except(['attachment']);
+            $dataToUpdate = $request->except(['attachment', '_token', '_method']);
         }
 
+        // Logika untuk menangani update file lampiran (hanya untuk user)
         if (!$isAdmin && $request->hasFile('attachment')) {
             if ($report->attachment_path) {
                 Storage::disk('public')->delete($report->attachment_path);
@@ -161,12 +173,12 @@ class FacilityReportController extends Controller
 
         // Kirim notifikasi HANYA jika admin mengubah status
         if ($isAdmin && $request->has('status') && $originalStatus !== $request->status) {
-            $report->reporter->notify(new ReportStatusUpdated($report));
+            $report->reporter->notify(new \App\Notifications\ReportStatusUpdated($report));
         }
 
         // Redirect ke halaman yang sesuai
         if ($isAdmin) {
-            return redirect()->route('dashboard')->with('success', 'Status laporan berhasil diperbarui!');
+            return redirect()->route('dashboard')->with('success', 'Laporan berhasil diperbarui!');
         } else {
             return redirect()->route('reports.index')->with('success', 'Laporan berhasil diperbarui!');
         }
