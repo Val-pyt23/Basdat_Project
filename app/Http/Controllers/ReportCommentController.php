@@ -19,7 +19,7 @@
         ]);
 
         // LOGIKA PENGIRIMAN NOTIFIKASI
-        if (Auth::user()->role->name == 'admin_sarpras') {
+        if (Auth::user()->isAdmin()) {
             // Jika admin yang berkomentar, kirim notif ke user
             $report->reporter->notify(new \App\Notifications\NewReportComment($report));
         } else {

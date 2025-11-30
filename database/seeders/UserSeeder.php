@@ -15,10 +15,21 @@ class UserSeeder extends Seeder
         User::create([
             'username' => 'mahasiswa_test',
             'email' => 'mahasiswa@test.com',
-            'password' => Hash::make('password'), // passwordnya: "password"
+            // Plain password so User model hash cast will apply
+            'password' => 'password_test_1', // passwordnya: "password"
             'role_id' => 1, // Asumsi 'mahasiswa' memiliki role_id = 1
             'instansi_id' => 1, // Asumsi 'Fakultas Teknik' memiliki instansi_id = 1
             'phone_number' => '08123456789',
+        ]);
+
+        User::create([
+            'username' => 'mahasiswa_test_2',
+            'email' => 'mahasiswa2@test.com',
+            // Plain password so User model hash cast will apply
+            'password' => 'password_test_2', // passwordnya: "password"
+            'role_id' => 1, // Asumsi 'mahasiswa' memiliki role_id = 1
+            'instansi_id' => 1, // Asumsi 'Fakultas Teknik' memiliki instansi_id = 1
+            'phone_number' => '08123456990',
         ]);
     }
 }

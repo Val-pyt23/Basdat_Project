@@ -59,12 +59,7 @@
                     </div>
                 </form>
 
-                 <p class="text-center text-sm text-gray-600 mt-6">
-                    Belum punya akun?
-                    <a href="{{ route('register') }}" class="font-medium text-indigo-600 hover:text-indigo-500">
-                        Daftar di sini
-                    </a>
-                </p>
+                {{-- Pendaftaran akun dinonaktifkan; akun dibuat melalui seeders. --}}
             </div>
         </div>
     </div>

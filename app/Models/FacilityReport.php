@@ -22,6 +22,8 @@ class FacilityReport extends Model
         'location',
         'status',
         'attachment_path',
+        'completion_notes',        // <-- Tambahkan ini
+        'completion_image_path',
     ];
 
     public function reporter()

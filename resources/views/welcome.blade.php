@@ -116,9 +116,7 @@
                     <a href="{{ route('password.request') }}" class="text-sm">Lupa password?</a>
                     <button type="submit" class="btn btn-primary rounded-pill px-4">Login</button>
                 </div>
-                <p class="text-center mt-4 text-sm">
-                    Belum punya akun? <a href="{{ route('register') }}">Daftar di sini</a>
-                </p>
+                {{-- Pendaftaran akun dinonaktifkan; akun dibuat melalui seeders. --}}
             </form>
         </div>
     </div>

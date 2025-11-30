@@ -11,13 +11,11 @@ class DashboardController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $userRole = $user->role->name;
-        $adminRoles = ['superadmin', 'admin_instansi'];
-
-        if (in_array($userRole, $adminRoles)) {
+        // Jika user adalah admin global (superadmin/admin_sarpras) atau admin instansi
+        if ($user->isAdmin()) {
             $reportsQuery = FacilityReport::with(['reporter', 'category', 'instansi'])->latest();
 
-            if ($userRole == 'admin_instansi') {
+            if ($user->isInstansiAdmin()) {
                 $reportsQuery->where('instansi_id', $user->instansi_id);
             }
 
@@ -25,7 +23,7 @@ class DashboardController extends Controller
             return view('admin.dashboard', compact('reports'));
 
         } else {
-            $userId = $user->id;
+            $userId = Auth::id();
             $pendingCount = FacilityReport::where('user_id', $userId)->where('status', 'pending')->count();
             $inProgressCount = FacilityReport::where('user_id', $userId)->where('status', 'in_progress')->count();
             $completedCount = FacilityReport::where('user_id', $userId)->where('status', 'completed')->count();

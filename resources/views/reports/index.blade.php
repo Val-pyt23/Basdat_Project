@@ -36,10 +36,19 @@
                             <td>
                                 <form action="{{ route('reports.destroy',$report->report_id) }}" method="POST">
                                     <a class="btn btn-info btn-sm" href="{{ route('reports.show',$report->report_id) }}">Lihat</a>
-                                    <a class="btn btn-primary btn-sm" href="{{ route('reports.edit',$report->report_id) }}">Edit</a>
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus laporan ini?')">Hapus</button>
+
+                                    @php
+                                        $isAdmin = in_array(Auth::user()->role->name, ['superadmin', 'admin_instansi', 'admin_sarpras']);
+                                        $isOwner = Auth::id() == $report->user_id;
+                                    @endphp
+
+                                    {{-- Tampilkan Edit/Hapus hanya jika admin, atau pemilik dan laporan belum completed --}}
+                                    @if($isAdmin || ($isOwner && $report->status !== 'completed'))
+                                        <a class="btn btn-primary btn-sm" href="{{ route('reports.edit',$report->report_id) }}">Edit</a>
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus laporan ini?')">Hapus</button>
+                                    @endif
                                 </form>
                             </td>
                         </tr>

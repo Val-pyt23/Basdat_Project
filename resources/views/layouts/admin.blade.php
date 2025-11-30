@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Lapor Unair</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -35,8 +36,8 @@
                             @if(isset($notifications))
                                 @forelse($notifications as $notification)
                                     <li>
-                                        {{-- REVISI ADA DI BARIS DI BAWAH INI --}}
-                                        <a class="dropdown-item" href="{{ $notification->data['url'] }}?notify_id={{ $notification->id }}" style="white-space: normal;">
+                                        {{-- REVISI: tambahkan kelas dan data-id untuk AJAX mark-as-read --}}
+                                        <a class="dropdown-item notification-link" href="{{ $notification->data['url'] }}?notify_id={{ $notification->id }}" data-id="{{ $notification->id }}" data-url="{{ $notification->data['url'] }}?notify_id={{ $notification->id }}" style="white-space: normal;">
                                             <p class="mb-0 small">{{ $notification->data['message'] }}</p>
                                             <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
                                         </a>
@@ -79,5 +80,29 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            document.querySelectorAll('.notification-link').forEach(function (el) {
+                el.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const id = el.dataset.id;
+                    const url = el.dataset.url || el.getAttribute('href');
+                    fetch(`/notifications/${id}/read`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({})
+                    }).catch(function () {
+                    }).finally(function () {
+                        window.location = url;
+                    });
+                });
+            });
+        });
+    </script>
 </body>
 </html>

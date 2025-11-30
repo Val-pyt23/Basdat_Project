@@ -1,18 +1,18 @@
-{{-- REVISI: Gunakan pengecekan peran yang lebih fleksibel untuk memilih layout --}}
-@extends(in_array(Auth::user()->role->name, ['superadmin', 'admin_instansi']) ? 'layouts.admin' : 'layouts.app')
+@extends(Auth::user()->isAdmin() ? 'layouts.admin' : 'layouts.app')
 
 @section('content')
 <div class="container">
+    {{-- KARTU DETAIL LAPORAN --}}
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <h2 class="mb-0">Detail Laporan</h2>
             <div>
-                @if(in_array(Auth::user()->role->name, ['superadmin', 'admin_instansi']))
+                @if(Auth::user()->isAdmin())
                     <a class="btn btn-primary" href="{{ route('reports.edit', $report->report_id) }}">
                         Edit Laporan
                     </a>
                 @endif
-                <a class="btn btn-secondary ms-2" href="{{ in_array(Auth::user()->role->name, ['superadmin', 'admin_instansi']) ? route('dashboard') : route('reports.index') }}"> Kembali</a>
+                <a class="btn btn-secondary ms-2" href="{{ Auth::user()->isAdmin() ? route('dashboard') : route('reports.index') }}"> Kembali</a>
             </div>
         </div>
         <div class="card-body">
@@ -50,7 +50,7 @@
                         @if($report->attachment_path)
                             <li class="list-group-item d-flex justify-content-between">
                                 <strong>Lampiran:</strong>
-                                <a href="{{ Storage::url($report->attachment_path) }}" target="_blank">Lihat Lampiran</a>
+                                <a href="{{ route('reports.attachment', $report->report_id) }}" target="_blank">Lihat Lampiran</a>
                             </li>
                         @endif
                     </ul>
@@ -73,7 +73,7 @@
                     <div class="flex-grow-1 border-bottom pb-2">
                         <h5 class="mt-0 mb-1">
                             {{ $comment->user->username }}
-                            @if(in_array($comment->user->role->name, ['superadmin', 'admin_instansi']))
+                            @if($comment->user->isAdmin())
                                 <span class="badge bg-primary">Admin</span>
                             @endif
                         </h5>
@@ -87,7 +87,6 @@
 
             <hr class="my-4">
 
-            {{-- Form Tambah Komentar --}}
             <form action="{{ route('comments.store', $report->report_id) }}" method="POST">
                 @csrf
                 <div class="mb-3">
@@ -107,8 +106,7 @@
         </div>
         <div class="card-body">
             @if(Auth::id() == $report->user_id)
-                @if($existingRating)
-                    {{-- Tampilkan rating yang sudah diberikan --}}
+                @if(isset($existingRating) && $existingRating)
                     <div class="text-center">
                         <p class="mb-1">Anda telah memberikan penilaian:</p>
                         <h3 class="display-5">
@@ -125,9 +123,23 @@
                         @endif
                     </div>
                 @else
-                    {{-- Tampilkan form untuk memberi rating --}}
                     <form action="{{ route('ratings.store', $report->report_id) }}" method="POST">
-                        {{-- ... (Isi form rating) ... --}}
+                        @csrf
+                        <div class="mb-3 text-center">
+                            <label class="form-label">Seberapa puaskah Anda dengan penanganan laporan ini?</label>
+                            <div class="btn-group" role="group">
+                                <input type="radio" class="btn-check" name="rating_value" id="star1" value="1" required><label class="btn btn-outline-primary" for="star1">★ 1</label>
+                                <input type="radio" class="btn-check" name="rating_value" id="star2" value="2"><label class="btn btn-outline-primary" for="star2">★ 2</label>
+                                <input type="radio" class="btn-check" name="rating_value" id="star3" value="3"><label class="btn btn-outline-primary" for="star3">★ 3</label>
+                                <input type="radio" class="btn-check" name="rating_value" id="star4" value="4"><label class="btn btn-outline-primary" for="star4">★ 4</label>
+                                <input type="radio" class="btn-check" name="rating_value" id="star5" value="5"><label class="btn btn-outline-primary" for="star5">★ 5</label>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="comment" class="form-label">Tambahkan Komentar (Opsional)</label>
+                            <textarea name="comment" class="form-control" rows="3" placeholder="Berikan masukan Anda..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-success">Kirim Penilaian</button>
                     </form>
                 @endif
             @else
@@ -138,3 +150,4 @@
     @endif
 </div>
 @endsection
+

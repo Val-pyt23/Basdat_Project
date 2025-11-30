@@ -29,6 +29,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Route untuk menyimpan komentar
     Route::post('reports/{report}/comments', [ReportCommentController::class, 'store'])->name('comments.store');
 
+    // Route untuk mengunduh/menampilkan lampiran laporan (menggunakan controller untuk otorisasi)
+    Route::get('reports/{report}/attachment', [FacilityReportController::class, 'attachment'])->name('reports.attachment');
+
+    // Route untuk menyimpan penilaian (rating) setelah laporan selesai
+    Route::post('reports/{report}/ratings', [\App\Http\Controllers\RatingController::class, 'store'])->name('ratings.store');
+
+    // Route untuk menandai notifikasi sebagai dibaca (AJAX)
+    Route::post('notifications/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('notifications.read');
+
     // Route untuk halaman "Tentang Layanan"
     Route::get('/tentang-layanan', [PageController::class, 'about'])->name('pages.about');
     

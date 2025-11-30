@@ -9,6 +9,7 @@ class RoleSeeder extends Seeder
     {
         Role::create(['name' => 'mahasiswa']);      // ID = 1
         Role::create(['name' => 'superadmin']);       // ID = 2
-        Role::create(['name' => 'admin_ftmm']); // ID = 3
+        // Role untuk admin instansi (umum untuk semua instansi)
+        Role::create(['name' => 'admin_instansi']); // ID = 3
     }
 }

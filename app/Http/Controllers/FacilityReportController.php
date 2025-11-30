@@ -20,13 +20,24 @@ class FacilityReportController extends Controller
      */
     public function index()
     {
-        if (Auth::user()->role->name == 'admin_sarpras') {
+        $user = Auth::user();
+        // Super admin and admin_sarpras can see all reports
+        if ($user->isGlobalAdmin()) {
             $reports = FacilityReport::latest()->paginate(10);
-        } else {
+        }
+        // Admin per instansi hanya melihat laporan untuk instansi mereka
+        elseif ($user->isInstansiAdmin()) {
+            $reports = FacilityReport::where('instansi_id', $user->instansi_id)
+                                     ->latest()
+                                     ->paginate(10);
+        }
+        // Default: user biasa hanya melihat laporannya sendiri
+        else {
             $reports = FacilityReport::where('user_id', Auth::id())
                                      ->latest()
                                      ->paginate(10);
         }
+
         return view('reports.index', compact('reports'));
     }
 
@@ -92,13 +103,33 @@ class FacilityReportController extends Controller
      */
     public function show(Request $request, FacilityReport $report)
     {
+        // Hapus debug dump agar view render normal untuk user
+        $user = Auth::user();
+        // Pastikan peran user tersedia untuk logika otorisasi
+        $userRole = $user->role->name ?? null;
+        // Logika otorisasi (pastikan user berhak melihat laporan ini)
+        if ($user->isInstansiAdmin() && $user->instansi_id != $report->instansi_id) {
+            abort(403, 'Anda tidak memiliki akses ke laporan ini.');
+        }
+        // Pastikan menggunakan Auth::id() karena primary key user adalah `user_id`
+        if ($userRole == 'mahasiswa' && Auth::id() != $report->user_id) {
+            abort(403, 'Anda tidak memiliki akses ke laporan ini.');
+        }
+
+        // Logika untuk menandai notifikasi sebagai "telah dibaca"
         if ($request->has('notify_id')) {
-            $notification = Auth::user()->notifications()->where('id', $request->query('notify_id'))->first();
+            $notification = $user->notifications()->where('id', $request->query('notify_id'))->first();
             if ($notification) {
                 $notification->markAsRead();
             }
         }
-        return view('reports.show', compact('report'));
+        
+        // --- PERBAIKAN DI SINI ---
+        // Selalu cari apakah user saat ini sudah memberikan rating
+        $existingRating = $report->ratings()->where('user_id', Auth::id())->first();
+        
+        // Kirim SEMUA data yang dibutuhkan ke view, termasuk $existingRating
+        return view('reports.show', compact('report', 'existingRating'));
     }
 
     /**
@@ -106,6 +137,17 @@ class FacilityReportController extends Controller
      */
     public function edit(FacilityReport $report)
     {
+        $user = Auth::user();
+        $isAdmin = $user->isAdmin();
+
+        // Jika bukan admin dan bukan pemilik, atau laporan sudah completed, tolak akses
+        if (!$isAdmin && Auth::id() != $report->user_id) {
+            abort(403, 'Anda tidak memiliki akses untuk mengedit laporan ini.');
+        }
+        if (!$isAdmin && $report->status === 'completed') {
+            abort(403, 'Laporan yang sudah selesai tidak dapat diedit.');
+        }
+
         $categories = Category::all();
         $instansis = Instansi::all();
         return view('reports.edit', compact('report', 'categories', 'instansis'));
@@ -116,37 +158,53 @@ class FacilityReportController extends Controller
      */
     public function update(Request $request, FacilityReport $report)
     {
-        // Cek apakah pengguna adalah admin
-        $isAdmin = in_array(Auth::user()->role->name, ['superadmin', 'admin_instansi']);
+        $isAdmin = Auth::user()->isAdmin();
         $originalStatus = $report->status;
+        
         $dataToUpdate = [];
 
+        // Prevent non-admins from updating completed reports
+        if (!$isAdmin && $report->status === 'completed') {
+            abort(403, 'Laporan yang sudah selesai tidak dapat diubah.');
+        }
+
         if ($isAdmin) {
-            // ---- LOGIKA UNTUK ADMIN ----
-            // 1. Aturan validasi HANYA untuk admin
+            // --- LOGIKA UNTUK ADMIN ---
             $rules = [
                 'status' => 'required|string',
                 'admin_comment' => 'nullable|string',
+                // Aturan baru: completion_notes wajib jika status diubah menjadi 'completed'
+                'completion_notes' => 'required_if:status,completed|nullable|string',
+                'completion_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             ];
             
             $request->validate($rules);
             
-            // 2. Data yang akan diupdate HANYA status
             $dataToUpdate['status'] = $request->status;
 
-            // 3. Simpan komentar jika ada
+            // Simpan data bukti jika statusnya completed
+            if ($request->status == 'completed') {
+                $dataToUpdate['completion_notes'] = $request->completion_notes;
+                if ($request->hasFile('completion_image')) {
+                    // Hapus gambar lama jika ada
+                    if ($report->completion_image_path) {
+                        Storage::disk('public')->delete($report->completion_image_path);
+                    }
+                    $dataToUpdate['completion_image_path'] = $request->file('completion_image')->store('completion_proofs', 'public');
+                }
+            }
+            
+            // Simpan komentar jika ada
             if ($request->filled('admin_comment')) {
                 $report->comments()->create([
                     'user_id' => Auth::id(),
                     'body' => $request->admin_comment,
                 ]);
-                // Kirim notifikasi komentar ke user
                 $report->reporter->notify(new \App\Notifications\NewReportComment($report));
             }
 
         } else {
-            // ---- LOGIKA UNTUK USER BIASA ----
-            // Aturan validasi untuk user biasa (tidak ada status)
+            // ---- LOGIKA UNTUK USER BIASA (TETAP SAMA) ----
             $rules = [
                 'title' => 'required|string|max:255',
                 'category_id' => 'required|exists:categories,category_id',
@@ -189,16 +247,54 @@ class FacilityReportController extends Controller
      */
     public function destroy(FacilityReport $report)
     {
+        $user = Auth::user();
+        $isAdmin = $user->isAdmin();
+
+        // Hanya admin atau pemilik yang belum completed yang bisa menghapus
+        if (!$isAdmin) {
+            if (Auth::id() != $report->user_id) {
+                abort(403, 'Anda tidak memiliki akses untuk menghapus laporan ini.');
+            }
+            if ($report->status === 'completed') {
+                abort(403, 'Laporan yang sudah selesai tidak dapat dihapus.');
+            }
+        }
+
         if ($report->attachment_path) {
             Storage::disk('public')->delete($report->attachment_path);
         }
 
         $report->delete();
-        
-        if (Auth::user()->role->name == 'admin_sarpras') {
+
+        if ($isAdmin) {
             return redirect()->route('dashboard')->with('success', 'Laporan berhasil dihapus!');
         } else {
             return redirect()->route('reports.index')->with('success', 'Laporan berhasil dihapus!');
         }
+    }
+
+    /**
+     * Mengembalikan file lampiran untuk laporan (dengan otorisasi).
+     */
+    public function attachment(FacilityReport $report)
+    {
+        $user = Auth::user();
+        $userRole = $user->role->name;
+
+        // Cek otorisasi: admin atau pemilik laporan
+        if (!$user->isAdmin() && Auth::id() != $report->user_id) {
+            abort(403, 'Anda tidak memiliki akses untuk melihat lampiran ini.');
+        }
+
+        if (!$report->attachment_path) {
+            abort(404, 'Lampiran tidak ditemukan.');
+        }
+
+        $fullPath = storage_path('app/public/' . $report->attachment_path);
+        if (!file_exists($fullPath)) {
+            abort(404, 'File lampiran tidak ditemukan di server.');
+        }
+
+        return response()->file($fullPath);
     }
 }
